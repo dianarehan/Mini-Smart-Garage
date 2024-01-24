@@ -1,0 +1,70 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity servo_pwm_clk64kHz is
+    PORT(
+        clk         : IN  STD_LOGIC;
+        reset       : IN  STD_LOGIC;
+        btn_pressed : IN  STD_LOGIC;  -- Button press to set position to 90 degrees
+        ir_sensor   : IN  STD_LOGIC;  -- IR sensor input
+        servo       : OUT STD_LOGIC;
+        ir_counter  : OUT INTEGER range 0 to 127  -- Counter to keep track of IR sensor detections
+
+    );
+end servo_pwm_clk64kHz;
+
+architecture Behavioral of servo_pwm_clk64kHz is
+    COMPONENT clk64kHz
+        PORT(
+            clk    : in  STD_LOGIC;
+            reset  : in  STD_LOGIC;
+            clk_out: out STD_LOGIC
+        );
+    END COMPONENT;
+   
+    COMPONENT servo_pwm
+        PORT (
+            clk   : IN  STD_LOGIC;
+            reset : IN  STD_LOGIC;
+            pos   : IN  STD_LOGIC_VECTOR(6 downto 0);
+            servo : OUT STD_LOGIC
+        );
+    END COMPONENT;
+   
+    signal clk_out       : STD_LOGIC := '0';
+    signal pos_90_degrees: STD_LOGIC_VECTOR(6 downto 0) := "1001001";  -- 90 degrees
+	 signal pos_current : STD_LOGIC_VECTOR(6 downto 0) := "0000000";
+    signal ir_count      : INTEGER range 0 to 127 := 0;  -- Counter for IR sensor detections
+
+begin
+    clk64kHz_map: clk64kHz PORT MAP(
+        clk, reset, clk_out
+    );
+   
+    servo_pwm_map: servo_pwm PORT MAP(
+        clk_out, reset, pos_current, servo
+    );
+
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if reset = '1' then
+                pos_current <= "0000000";  -- Initialize position to 0 degrees on reset
+                ir_count <= 0;  -- Reset IR counter on reset
+            else
+                -- Check for button press and update position accordingly
+                if btn_pressed = '1' then
+                    pos_current <= pos_90_degrees;  -- Set position to 90 degrees on button press
+                elsif ir_sensor = '0' then
+                    pos_current <= "0000000";  -- Set position to 0 degrees when IR sensor is not detecting anything
+                    ir_count <= ir_count + 1;  -- Increment IR counter on IR sensor detection
+                end if;
+            end if;
+        end if;
+    end process;
+
+    ir_counter <= ir_count;  -- Output the IR counter value
+
+end Behavioral;
